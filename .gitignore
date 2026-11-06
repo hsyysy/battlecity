@@ -1,0 +1,26 @@
+# User-supplied ROM (never commit)
+/BattleCity.nes
+*.nes
+
+# Build trees and generated headers
+/build*/
+/src/stages.h
+/src/stage1.h
+/src/result_screen.h
+/src/gameover_screen.h
+
+# Derived reference captures (regenerate with tools/capture_*.lua)
+/assets/reference/*
+!/assets/reference/ALIGNMENT.md
+!/assets/reference/README.md
+
+# Local outputs
+*.bmp
+*.wav
+*.raw
+*.gd
+*-ppu.bin
+*-ram.bin
+core
+core.*
+__pycache__/
