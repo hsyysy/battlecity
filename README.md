@@ -115,7 +115,13 @@ ctest --test-dir build --output-on-failure
 
 普通运行默认有声；`--mute` 关闭设备播放。`--headless` 与 `--frames` 不打开音频设备，仍可通过 `--audio-out` 导出 44.1 kHz、16 位单声道 WAV。音频试听文件依次包含开场、怠速、行驶、开火、砖墙、钢墙、敌人、玩家、基地、暂停、道具、结算逐辆计分音、通关音乐和失败音乐。
 
-`reference_pixels` 自动输出 `build/reference-validation/report.json`、实际 PNG 和静态画面差异图（紫色为差异，灰色为排除的精灵区域）；当前覆盖标题（1P 与 CONSTRUCTION 光标）、标题卷入动画、砖块 GAME OVER、战场 GAME OVER 文字裁剪、暂停 PAUSE 裁剪、Construction 光标显示帧／隐藏帧／空地图／绘制后地图、1P/2P 结算动画的多个逐辆累加与 TOTAL 帧、关卡选择全屏和第一关静态画面。参照帧不随仓库提供，需按 [tools/README.md](tools/README.md) 本地捕获，然后配置 `-DBATTLECITY_REFERENCE_TESTS=ON -DBATTLECITY_REFERENCE_DIR=...`。`sound` 检查原版声音请求（含结算逐辆计分音）、音乐与短音效的混音、确定性、停止和静音；`sdl3_smoke` 同时生成 `smoke.bmp` 和 `smoke.wav`。
+`reference_pixels` 自动输出 `build/reference-validation/report.json`、实际 PNG 和静态画面差异图（紫色为差异，灰色为排除的精灵区域）；当前覆盖标题（1P 与 CONSTRUCTION 光标）、标题卷入动画、砖块 GAME OVER、战场 GAME OVER 文字裁剪、暂停 PAUSE 裁剪、Construction 光标显示帧／隐藏帧／空地图／绘制后地图、1P/2P 结算动画的多个逐辆累加与 TOTAL 帧、关卡选择全屏和第一关静态画面。参照帧不随仓库提供。先生成完整参照目录：
+
+```sh
+python3 tools/capture_all_references.py --rom /path/to/BattleCity.nes --out build/reference
+```
+
+再配置 `-DBATTLECITY_REFERENCE_TESTS=ON -DBATTLECITY_REFERENCE_DIR=build/reference`。显式启用但缺少 `title.png` 时 CMake 会报错；比较脚本开始前也会列出所有缺失的 PNG、RAM 和精灵裁剪。`menu` 通过实际的菜单按键处理验证 Construction 中 Space 绘制而不退出、Enter 保存退出；`sound` 检查原版声音请求（含结算逐辆计分音）、音乐与短音效的混音、确定性、停止和静音；`sdl3_smoke` 同时生成 `smoke.bmp` 和 `smoke.wav`。
 
 ```sh
 cmake -S . -B build-asan -DCMAKE_BUILD_TYPE=Debug -DENABLE_SANITIZERS=ON
@@ -123,7 +129,7 @@ cmake --build build-asan -j
 ASAN_OPTIONS=detect_leaks=0 ctest --test-dir build-asan --output-on-failure
 ```
 
-核心测试覆盖边界与地形碰撞、砖墙分层破坏、钢墙阻挡、击杀计分、基地受击、出生保护、复活、通关、子弹抵消、暂停冻结与 PAUSE 精灵、35 关地形与敌人编成、出生顺序、玩家与子弹速度、双人独立移动/计分/生命、六种道具效果、分类击杀统计、1P/2P 结算累加时序与逐辆计分音、Construction 光标移动/自动重复/方块循环/绘制与自制地图进入关卡、战场 GAME OVER 文字阶段、GAME OVER／标题卷入流程、20000 分奖命、结算高分更新、声音事件及 5000 次更新的确定性检查。SDL3 集成测试实际渲染 1200 帧并保存 BMP 和 WAV。Sanitizer 命令关闭 SDL/系统库的泄漏检查，地址检查和未定义行为检查保持启用。
+`menu` 通过实际按键处理覆盖 Construction 的 Space/Enter 行为和地图保存；核心测试覆盖边界与地形碰撞、砖墙分层破坏、钢墙阻挡、击杀计分、基地受击、出生保护、复活、通关、子弹抵消、暂停冻结与 PAUSE 精灵、35 关地形与敌人编成、出生顺序、玩家与子弹速度、双人独立移动/计分/生命、六种道具效果、分类击杀统计、1P/2P 结算累加时序与逐辆计分音、Construction 光标移动/自动重复/方块循环/绘制与自制地图进入关卡、战场 GAME OVER 文字阶段、GAME OVER／标题卷入流程、20000 分奖命、结算高分更新、声音事件及 5000 次更新的确定性检查。SDL3 集成测试实际渲染 1200 帧并保存 BMP 和 WAV。Sanitizer 命令关闭 SDL/系统库的泄漏检查，地址检查和未定义行为检查保持启用。
 
 ## ROM 分析与参照数据
 

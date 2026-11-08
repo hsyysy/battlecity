@@ -22,7 +22,7 @@ def main():
         write_png(output / f'{frame}.png', rgb)
     for name in ('sound-durations.csv', 'sound-events.csv'):
         source = args.input / name
-        if source.exists():
+        if source.exists() and source.resolve() != (args.reference / name).resolve():
             shutil.copyfile(source, args.reference / name)
     print('Exported original ROM sprite frames and audio event evidence')
 

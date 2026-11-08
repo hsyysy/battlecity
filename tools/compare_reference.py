@@ -4,11 +4,31 @@ import argparse
 import json
 import struct
 import subprocess
+import sys
 import zlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 WIDTH, HEIGHT = 256, 240
+SCENES = ('title', 'titlec', 'construction', 'construction_blink',
+          'construction_edit', 'gameover', 'fieldoverlay', 'pause',
+          'titlescroll51', 'titlescroll171', 'tally0', 'tally33', 'tally72',
+          'tally81', 'tally117', 'tally120', 'tally177', 'tally204',
+          'tally251', 'tally2p0', 'tally2p34', 'tally2p43', 'tally2p70',
+          'tally2p109', 'tally2p145', 'tally2p193', 'tally2p286',
+          'tally2p396', 'stage_select', 'stage1')
+# (scene, emulator frame, x, y, width, height) derived from capture_trace.lua.
+SPRITES = (('right', 1330, 88, 208, 16, 16), ('up', 1370, 88, 186, 16, 16),
+           ('left', 1410, 80, 184, 16, 16), ('down', 1450, 80, 206, 16, 16),
+           ('spawn', 1100, 80, 208, 16, 16), ('shield', 1200, 80, 208, 16, 16),
+           ('enemy', 1200, 112, 40, 16, 16), ('bullet', 1500, 83, 124, 8, 16))
+
+
+def required_reference_files():
+    files = [f'{name}.png' for name in SCENES]
+    files.append('stage1-ram.bin')
+    files.extend(f'sprites/{frame}.png' for _, frame, *_ in SPRITES)
+    return files
 
 
 def read_png(path):
@@ -103,8 +123,19 @@ def main():
     parser.add_argument('--output', required=True, type=Path)
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
+    missing = [name for name in required_reference_files()
+               if not (args.reference / name).is_file()]
+    if missing:
+        print(f'Missing {len(missing)} reference file(s) in {args.reference}:',
+              file=sys.stderr)
+        for name in missing:
+            print('  ' + name, file=sys.stderr)
+        print('Regenerate them from a user-supplied ROM with:\n'
+              '  python3 tools/capture_all_references.py --rom ROM --out DIR',
+              file=sys.stderr)
+        return 2
     results = []
-    for name in ('title', 'titlec', 'construction', 'construction_blink', 'construction_edit', 'gameover', 'fieldoverlay', 'pause', 'titlescroll51', 'titlescroll171', 'tally0', 'tally33', 'tally72', 'tally81', 'tally117', 'tally120', 'tally177', 'tally204', 'tally251', 'tally2p0', 'tally2p34', 'tally2p43', 'tally2p70', 'tally2p109', 'tally2p145', 'tally2p193', 'tally2p286', 'tally2p396', 'stage_select', 'stage1'):
+    for name in SCENES:
         ppm = args.output / f'{name}.ppm'
         subprocess.run([str(args.renderer.resolve()), name, str(ppm)], check=True)
         data = ppm.read_bytes()
@@ -116,11 +147,7 @@ def main():
         print(json.dumps(result))
     # These crops are original emulator frames, not snapshots of our renderer.
     # Positions and animation phases come from capture_trace.lua's OAM trace.
-    sprites = [('right', 1330, 88, 208, 16, 16), ('up', 1370, 88, 186, 16, 16),
-               ('left', 1410, 80, 184, 16, 16), ('down', 1450, 80, 206, 16, 16),
-               ('spawn', 1100, 80, 208, 16, 16), ('shield', 1200, 80, 208, 16, 16),
-               ('enemy', 1200, 112, 40, 16, 16), ('bullet', 1500, 83, 124, 8, 16)]
-    for name, frame, x, y, width, height in sprites:
+    for name, frame, x, y, width, height in SPRITES:
         ppm = args.output / f'{name}.ppm'
         subprocess.run([str(args.renderer.resolve()), name, str(ppm)], check=True)
         actual = ppm.read_bytes().split(b'\n', 3)[3]

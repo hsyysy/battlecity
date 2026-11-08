@@ -8,7 +8,7 @@ os.execute('mkdir -p ' .. output)
 local players = tonumber(os.getenv('BC_PLAYERS') or '1')
 local targets = players == 2 and {[0]=true,[34]=true,[43]=true,[70]=true,
         [109]=true,[145]=true,[193]=true,[286]=true,[396]=true}
-    or {[0]=true,[33]=true,[72]=true,[81]=true,[120]=true,
+    or {[0]=true,[33]=true,[72]=true,[81]=true,[117]=true,[120]=true,
         [177]=true,[204]=true,[251]=true}
 local started, startframe = false, 0
 for frame = 1, 2200 do
@@ -37,7 +37,7 @@ for frame = 1, 2200 do
     if started then
         local rel = frame - startframe
         if targets[rel] then
-            local prefix = output .. '/' .. players .. 'p-' .. rel
+            local prefix = output .. '/' .. (players == 2 and 'tally2p' or 'tally') .. rel
             local g = assert(io.open(prefix .. '.gd', 'wb'))
             g:write(gui.gdscreenshot()); g:close()
             local p = assert(io.open(prefix .. '-ppu.bin', 'wb'))

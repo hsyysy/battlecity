@@ -63,14 +63,28 @@ static void combat_test(void) {
     CHECK(g.lives[0]==2);CHECK(!g.tanks[0].alive);
     CHECK(g.sound_events&(1u<<SOUND_PLAYER));
     step(&g,90);CHECK(g.tanks[0].alive);CHECK(g.tanks[0].shield>0);
+    arena(&g);g.player_rank[0]=3;g.tanks[0].rank=3;g.tanks[0].shield=0;
+    g.bullets[0]=(Bullet){true,72,158,DOWN,1,2,0};step(&g,1);
+    CHECK(!g.tanks[0].alive && g.lives[0]==2 && g.player_rank[0]==0);
+    step(&g,123);
+    CHECK(g.tanks[0].alive && g.tanks[0].rank==0 && g.player_rank[0]==0);
+    CHECK(game_fire(&g,0));
+    for(int i=0;i<MAX_BULLETS;++i) if(g.bullets[i].alive)
+        CHECK(g.bullets[i].speed==2 && g.bullets[i].power==0);
     arena(&g);g.remaining=0;g.killed=19;g.high_score=50;
     g.tanks[1]=(Tank){.alive=true,.x=64,.y=128,.dir=DOWN,.hp=1,.cooldown=999,.think=999};
     CHECK(game_fire(&g,0));step(&g,8);CHECK(g.phase==WON);
     CHECK(g.high_score>=100);
     CHECK(g.sound_events&(1u<<SOUND_STAGE_CLEAR));
-    arena(&g);g.bullets[0]=(Bullet){true,20,20,RIGHT,0,2,0};
+    arena(&g);g.tanks[1]=(Tank){.alive=true,.x=64,.y=128,.dir=DOWN,.hp=1,.cooldown=999,.think=999};
+    g.bullets[0]=(Bullet){true,20,20,RIGHT,0,2,0};
     g.bullets[1]=(Bullet){true,24,20,LEFT,1,2,0};step(&g,1);
     CHECK(!g.bullets[0].alive && !g.bullets[1].alive);
+    // Interception applies the same 9-frame cooldown as wall hits.
+    CHECK(g.tanks[0].cooldown==9 && g.tanks[1].cooldown==9);
+    step(&g,9);
+    CHECK(g.tanks[0].cooldown==0);
+    CHECK(game_fire(&g,0));
 }
 
 static void progression_test(void) {
@@ -351,6 +365,34 @@ static void bonus_life_test(void) {
     h.base_alive=false;h.score[0]=30000;
     step(&h,1);
     CHECK(h.lives[0]==3 && !h.bonus_awarded[0]);
+
+    // A life earned after the last tank was destroyed revives the player.
+    Game r;game_start_mode(&r,2,1);
+    memset(r.map,0,sizeof(r.map));
+    r.spawn_timer=100000;r.freeze_timer=1000;
+    r.tanks[0].alive=false;r.lives[0]=0;r.respawn_timer[0]=0;
+    r.score[0]=20000;
+    step(&r,1);
+    CHECK(r.lives[0]==1 && r.bonus_awarded[0]);
+    CHECK(r.respawn_timer[0]>0 && r.phase==PLAYING);
+    step(&r,90);
+    CHECK(r.tanks[0].alive);
+
+    // In 1P, a last bullet that reaches 20,000 in the same frame as the
+    // player's death must award the life before the failure check.
+    Game s;arena(&s);
+    s.lives[0]=1;s.score[0]=19900;
+    s.tanks[0].shield=0;s.tanks[0].spawn=0;
+    s.tanks[1]=(Tank){.alive=true,.x=64,.y=0,.dir=DOWN,.hp=1,
+                      .cooldown=999,.think=999,.spawn=0};
+    s.bullets[0]=(Bullet){true,72,158,DOWN,1,2,0};
+    s.bullets[1]=(Bullet){true,72,16,UP,0,2,0};
+    step(&s,1);
+    CHECK(!s.tanks[0].alive && !s.tanks[1].alive);
+    CHECK(s.score[0]==20000 && s.lives[0]==1);
+    CHECK(s.phase==PLAYING && s.respawn_timer[0]>0);
+    step(&s,90);
+    CHECK(s.tanks[0].alive);
 }
 
 static void tally_animation_test(void) {

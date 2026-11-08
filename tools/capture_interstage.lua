@@ -6,13 +6,13 @@ for frame = 1, 800 do
     joypad.set(1, keys)
     FCEU.frameadvance()
 end
-local f = assert(io.open(out .. '/inter-ppu.bin', 'wb'))
+local f = assert(io.open(out .. '/stage_select-ppu.bin', 'wb'))
 for i = 0, 0x3fff do f:write(string.char(ppu.readbyte(i))) end
 f:close()
-local r = assert(io.open(out .. '/inter-ram.bin', 'wb'))
+local r = assert(io.open(out .. '/stage_select-ram.bin', 'wb'))
 for i = 0, 0x7ff do r:write(string.char(memory.readbyte(i))) end
 r:close()
-local g = assert(io.open(out .. '/inter.gd', 'wb'))
+local g = assert(io.open(out .. '/stage_select.gd', 'wb'))
 g:write(gui.gdscreenshot())
 g:close()
 os.exit(0)

@@ -26,9 +26,18 @@ python3 tools/export_gameover.py --ppu DIR/gameover-ppu.bin --out build/generate
 ## Optional reference pixels
 
 The `reference_pixels` test compares against PNGs captured from FCEUX. These
-are not shipped. To regenerate a reference directory, run the relevant capture
-scripts with `BATTLECITY_TRACE_DIR` pointing at it and convert the GD
-screenshots. The scripts used by the checked-in validation are:
+are not shipped. Regenerate the complete reference directory with one command:
+
+```sh
+python3 tools/capture_all_references.py \
+  --rom /path/to/BattleCity.nes --out build/reference
+```
+
+The script runs every capture below, converts the `.gd` screenshots with
+`gd_to_png.py`, and creates `sprites/*.png` plus the CSV evidence with
+`export_trace.py`. It writes the exact scene names used by
+`compare_reference.py` (`title`, `construction_blink`, `stage_select`,
+`tally117`, `tally2p34`, and so on):
 
 - `capture_reference.lua` (title/stage1)
 - `capture_interstage.lua` (stage select)
@@ -38,15 +47,22 @@ screenshots. The scripts used by the checked-in validation are:
 - `capture_pause.lua` (PAUSE)
 - `capture_construction.lua` (title CONSTRUCTION cursor/editor)
 - `capture_titlescroll.lua` (title scroll frames)
-- `capture_tally.lua` with `BC_PLAYERS=1/2` (tally frames)
+- `capture_tally.lua` with `BC_PLAYERS=1/2` (tally frames, including 117)
 - `capture_tally_ticks.lua` (slots `$0313`/`$0314` request frames)
 - `capture_trace.lua` (sprite frames and sound-event evidence)
 - `capture_audio.lua` (isolated request durations)
 
-`export_trace.py --input DIR --reference DIR` creates `sprites/*.png` and copies
-the audio CSVs; `gd_to_png.py --input DIR --output DIR` converts the remaining
-GD screenshots to PNG. Configure the test with `-DBATTLECITY_REFERENCE_TESTS=ON` and
-`-DBATTLECITY_REFERENCE_DIR=/path/to/regenerated/references`.
+Then configure:
+
+```sh
+cmake -S . -B build -DBATTLECITY_ROM=/path/to/BattleCity.nes \
+  -DBATTLECITY_REFERENCE_TESTS=ON \
+  -DBATTLECITY_REFERENCE_DIR=build/reference
+```
+
+Explicitly enabling the test fails at configure time when `title.png` is
+missing. The comparison also checks every required PNG, RAM snapshot and sprite
+crop before rendering and reports the full missing list.
 
 ## ROM identification
 

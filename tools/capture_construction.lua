@@ -64,8 +64,8 @@ for frame = 1, 1000 do
     joypad.set(1, keys)
     FCEU.frameadvance()
     if frame == 490 then save('titlec', true, true, true) end
-    if frame == 540 then save('construction-blink', true, true, true) end
+    if frame == 540 then save('construction_blink', true, true, true) end
     if frame == 600 then save('construction', true, true, true) end
-    if frame == 980 then save('construction-edit', true, true, true) end
+    if frame == 980 then save('construction_edit', true, true, true) end
 end
 os.exit(0)

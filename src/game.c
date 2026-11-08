@@ -41,6 +41,12 @@ static void check_bonus_life(Game *g) {
         if (g->bonus_awarded[p] || g->score[p] < 20000) continue;
         g->bonus_awarded[p]=true;
         ++g->lives[p];
+        // A lingering bullet can cross 20,000 in the same frame that the
+        // player's last life is lost.  The life is still awarded, so bring
+        // the eliminated player back instead of leaving the game stuck with
+        // a life but no tank.
+        if (g->phase==PLAYING && !g->tanks[p].alive && g->respawn_timer[p]==0)
+            g->respawn_timer[p]=90;
         g->sound_events |= (1u<<SOUND_ENEMY)|(1u<<SOUND_PLAYER);
     }
 }
@@ -495,12 +501,10 @@ static void damage_tank(Game *g, int i, int attacker) {
     if (i<g->players) {
         g->sound_events |= 1u << SOUND_PLAYER;
         --g->lives[i];
+        // The ROM drops every star level on death; only players who survive
+        // into the next stage keep their upgrades.
+        g->player_rank[i]=0;
         if (g->lives[i]>0) g->respawn_timer[i]=90;
-        if (g->phase==PLAYING && g->lives[0]+g->lives[1]==0) {
-            g->phase=LOST_FIELD;
-            g->phase_timer=0;
-            update_high_score(g);
-        }
     } else {
         g->sound_events |= 1u << SOUND_ENEMY;
         ++g->killed;
@@ -584,7 +588,12 @@ static void bullets_step(Game *g) {
                 bool other_player=other->owner<g->players;
                 if (i!=j && other->alive && this_player!=other_player &&
                     fabsf(b->x-other->x)<4 && fabsf(b->y-other->y)<4) {
-                    b->alive=false; other->alive=false; break;
+                    // Bullet-versus-bullet interception uses the same
+                    // destruction path as walls, so both shooters receive the
+                    // normal 9-frame cooldown.
+                    destroy_bullet(g,b);
+                    destroy_bullet(g,other);
+                    break;
                 }
             }
             if (!b->alive) break;
@@ -788,6 +797,15 @@ void game_step_inputs(Game *g, const Input inputs[2]) {
     }
     bullets_step(g);
     powerup_collect(g);
+    // A kill made by a dead player's last bullet is scored after the tank
+    // death, so evaluate the bonus life and the final failure only once all
+    // bullets for this frame have been resolved.
+    check_bonus_life(g);
+    if (g->phase==PLAYING && g->lives[0]+g->lives[1]==0) {
+        g->phase=LOST_FIELD;
+        g->phase_timer=0;
+        update_high_score(g);
+    }
     if (lost_field) {
         if (++g->phase_timer>=LOST_FIELD_DELAY+LOST_FIELD_TEXT_FRAMES) {
             g->phase=LOST;

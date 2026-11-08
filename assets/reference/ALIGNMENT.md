@@ -3,6 +3,10 @@
 ROM SHA-256: `a869aead5b6957fc62002ff9636e048cc34baf0100d629b07dc51aa18f220c0c`.
 Reference emulator: locally installed FCEUX 2.6.6, NTSC, no video filters.
 
+The repository does not ship these ROM-derived captures. Regenerate the whole
+reference directory with `tools/capture_all_references.py` as described in
+`tools/README.md`, then enable `BATTLECITY_REFERENCE_TESTS`.
+
 The FCEUX RGB values used by the PNG references are embedded in
 `tools/export_reference.py`. They were derived from the locally installed
 FCEUX palette: each 6-bit-aligned component is expanded with
