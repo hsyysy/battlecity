@@ -71,8 +71,12 @@ moves three pixels per four frames, ordinary enemy tanks one pixel per two
 frames, fast tanks one pixel per frame, and ordinary bullets two pixels per
 frame. Enemy direction changes, spawn delay (`190 − stage × 4` frames), spawn
 point rotation and spawn/shield durations follow the disassembly notes for
-`$DB75`, `$DBF1`, `$DC7C`, `$E363` and `$E42B`. Random-AI trajectories are not
-claimed to match a particular emulator run.
+`$DB75`, `$DBF1`, `$DC7C`, `$DE72`, `$DDA2`, `$E363` and `$E42B`. In
+particular, `$DE72` starts each stage with random movement, then targets a
+player, and only later targets the eagle; `$DDA2` uses the two `$E486` axis
+preference tables. A regression keeps the stage-one centre spawn from staying
+trapped in the short shaft above the eagle wall. Random-AI trajectories are
+still not claimed to match a particular emulator run.
 
 `sprites/*.png` are actual emulator screenshots produced by
 `tools/capture_trace.lua`, using Start at frames 500 and 1000, then right at

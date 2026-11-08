@@ -671,39 +671,53 @@ static void enemy_spawn(Game *g) {
     }
 }
 
-static Direction toward(int x, int y, int tx, int ty) {
-    int adx=abs(tx-x), ady=abs(ty-y);
-    if (adx>ady) return tx>x?RIGHT:LEFT;
-    return ty>y?DOWN:UP;
+// ROM $DDA2 CalcDirToTarget.  Enemies randomly choose between the two
+// $E486 tables: one prefers vertical movement when the target is off-row,
+// the other prefers horizontal movement when the target is off-column.
+static Direction direction_to_target(Game *g, const Tank *t, int tx, int ty) {
+    int delta_x=tx-((int)t->x+8);
+    int delta_y=ty-((int)t->y+8);
+    if (random_next(g)&1) {
+        if (delta_x<0) return LEFT;
+        if (delta_x>0) return RIGHT;
+        if (delta_y<0) return UP;
+        if (delta_y>0) return DOWN;
+        return UP;
+    }
+    if (delta_y<0) return UP;
+    if (delta_y>0) return DOWN;
+    if (delta_x<0) return LEFT;
+    if (delta_x>0) return RIGHT;
+    return UP;
 }
 
-static const Tank *choose_target_player(Game *g) {
-    int alive=0;
-    for (int p=0; p<g->players; ++p) alive+=g->tanks[p].alive;
-    if (!alive) return NULL;
-    int pick=(int)(random_next(g)%alive);
-    for (int p=0; p<g->players; ++p)
-        if (g->tanks[p].alive && pick--==0) return &g->tanks[p];
-    return NULL;
+// ROM $DE8E selects the player target for the mid-stage AI phase.  Even enemy
+// slots prefer P1; odd slots prefer P2 when it is active, otherwise P1.
+static const Tank *choose_target_player(const Game *g, int enemy_slot) {
+    if (g->players<2) return g->tanks[0].alive?&g->tanks[0]:NULL;
+    if (!g->tanks[0].alive) return g->tanks[1].alive?&g->tanks[1]:NULL;
+    if ((enemy_slot&1)==0) return &g->tanks[0];
+    return g->tanks[1].alive?&g->tanks[1]:&g->tanks[0];
 }
 
+// ROM $DE72 SpeedCtrlMove.  frame_hi is $0A (one unit per 64 frames) and
+// $84 is the stage spawn-delay base.  Early in the stage enemies wander,
+// then they alternate between chasing P1/P2, and finally they head for the
+// eagle.  The previous order chased the player from frame zero, which drove
+// the centre-spawn tank straight into the sealed shaft below the eagle wall.
 static void choose_enemy_direction(Game *g, Tank *t, int i) {
-    // SpeedCtrlMove: early in a stage enemies chase a player, then wander,
-    // and finally turn their attention to the eagle.
     int frame_hi=g->tick/64;
     int delay=190-g->stage*4-(g->players==2?20:0);
-    int cx=(int)t->x+8, cy=(int)t->y+8;
     Direction dir;
-    if (frame_hi<=delay/8) {
-        const Tank *target=choose_target_player(g);
-        if (target) dir=toward(cx,cy,(int)target->x+8,(int)target->y+8);
-        else dir=(Direction)(random_next(g)%4);
-    } else if (frame_hi<delay/4) {
-        dir=(Direction)(random_next(g)%4);
+    if (frame_hi>delay/4) {
+        dir=direction_to_target(g,t,104,200);
+    } else if (frame_hi>delay/8) {
+        const Tank *target=choose_target_player(g,i);
+        if (target) dir=direction_to_target(g,t,(int)target->x+8,(int)target->y+8);
+        else dir=(Direction)(random_next(g)&3);
     } else {
-        dir=toward(cx,cy,104,200);
+        dir=(Direction)(random_next(g)&3);
     }
-    (void)i;
     t->dir=dir;
     t->think=30+(int)(random_next(g)%100);
 }

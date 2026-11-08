@@ -838,6 +838,23 @@ static void forest_holes_test(void) {
     free(clear);free(trees);
 }
 
+static void center_enemy_ai_test(void) {
+    // Stage 1's centre spawn opens into a short shaft sealed by the eagle
+    // wall.  The old implementation chased the player from frame zero, so
+    // this tank bounced up and down forever.  The ROM wanders early in the
+    // stage, giving it a chance to leave along the open top row.
+    Game g;game_start_mode(&g,1,1);
+    game_step(&g,(Input){0});
+    g.spawn_timer=100000; // keep this first centre-spawned enemy isolated
+    for (int frame=0;frame<1800;++frame) {
+        g.tanks[0].shield=100000;
+        game_step(&g,(Input){0});
+    }
+    Tank *t=&g.tanks[4];
+    CHECK(t->alive);
+    CHECK(!((int)t->x==96 && t->y<40));
+}
+
 static void assets_test(void) {
     Rom rom;char error[256];
     CHECK(rom_load(&rom,TEST_ROM_PATH,error,sizeof(error)));
@@ -864,7 +881,7 @@ static void assets_test(void) {
 int main(void) {
     collision_test();wall_test();combat_test();progression_test();
     stage_test();movement_test();spawn_order_test();powerup_test();
-    two_player_test();bonus_life_test();high_score_after_base_test();high_score_display_test();overlay_forest_test();forest_holes_test();tally_animation_test();construction_test();
+    two_player_test();bonus_life_test();high_score_after_base_test();high_score_display_test();overlay_forest_test();forest_holes_test();center_enemy_ai_test();tally_animation_test();construction_test();
     lost_field_test();game_over_flow_test();assets_test();
     puts("PASS: terrain, brick damage, steel, combat, base, shields, respawn, victory, bullet interception, determinism, pause, 35 stages, stage select, construction editor, two-player mode, spawn order, movement timing, powerups, 1P/2P tally animation and ticks, battlefield GAME OVER, game over screen, title scroll, bonus life, high score, double bullets, six-digit high scores, forest overlays/holes, ROM and rendering");
     return 0;
