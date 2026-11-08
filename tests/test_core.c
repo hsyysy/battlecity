@@ -85,6 +85,28 @@ static void combat_test(void) {
     step(&g,9);
     CHECK(g.tanks[0].cooldown==0);
     CHECK(game_fire(&g,0));
+
+    // Same-direction, same-speed bullets keep their 4px spacing and never
+    // collide, regardless of which array slot holds which bullet.
+    for (int swap=0; swap<2; ++swap) {
+        arena(&g);
+        g.tanks[1]=(Tank){.alive=true,.x=64,.y=128,.dir=DOWN,.hp=1,
+                          .cooldown=999,.think=999};
+        int pslot=swap, eslot=1-swap;
+        g.bullets[pslot]=(Bullet){true,20,20,RIGHT,0,2,0};
+        g.bullets[eslot]=(Bullet){true,24,20,RIGHT,1,2,0};
+        step(&g,1);
+        CHECK(g.bullets[pslot].alive && g.bullets[eslot].alive);
+        CHECK((int)g.bullets[pslot].x==22 && (int)g.bullets[eslot].x==26);
+    }
+    // A slower bullet behind a faster one must also stay alive.
+    arena(&g);g.tanks[1]=(Tank){.alive=true,.x=64,.y=128,.dir=DOWN,.hp=1,
+                                .cooldown=999,.think=999};
+    g.bullets[0]=(Bullet){true,20,20,RIGHT,0,2,0};
+    g.bullets[1]=(Bullet){true,24,20,RIGHT,1,4,0};
+    step(&g,1);
+    CHECK(g.bullets[0].alive && g.bullets[1].alive);
+    CHECK((int)g.bullets[0].x==22 && (int)g.bullets[1].x==28);
 }
 
 static void progression_test(void) {
@@ -447,6 +469,32 @@ static void bonus_life_test(void) {
     CHECK(s.phase==PLAYING && s.respawn_timer[0]>0);
     step(&s,90);
     CHECK(s.tanks[0].alive);
+
+    // If the last bullet reaches the threshold on the frame after the last
+    // death, the already-started LOST_FIELD must be cancelled by the 1UP.
+    Game t;arena(&t);
+    t.lives[0]=1;t.score[0]=19900;
+    t.tanks[0].shield=0;t.tanks[0].spawn=0;
+    t.tanks[1]=(Tank){.alive=true,.x=64,.y=0,.dir=DOWN,.hp=1,
+                      .cooldown=999,.think=999,.spawn=0};
+    t.bullets[0]=(Bullet){true,72,158,DOWN,1,2,0};
+    t.bullets[1]=(Bullet){true,72,20,UP,0,2,0};
+    step(&t,1);
+    CHECK(!t.tanks[0].alive && t.phase==LOST_FIELD && t.score[0]==19900);
+    step(&t,1);
+    CHECK(!t.tanks[1].alive && t.score[0]==20000);
+    CHECK(t.lives[0]==1 && t.respawn_timer[0]>0 && t.phase==PLAYING);
+    step(&t,90);
+    CHECK(t.tanks[0].alive);
+
+    // A destroyed eagle still forbids the bonus life and cannot be revived.
+    Game u;arena(&u);
+    u.base_alive=false;u.phase=LOST_FIELD;u.phase_timer=0;
+    u.score[0]=20000;u.lives[0]=0;u.tanks[0].alive=false;
+    u.respawn_timer[0]=0;
+    step(&u,1);
+    CHECK(!u.bonus_awarded[0] && u.lives[0]==0);
+    CHECK(u.respawn_timer[0]==0 && u.phase==LOST_FIELD);
 }
 
 static void tally_animation_test(void) {
@@ -694,6 +742,66 @@ static void game_over_flow_test(void) {
     for(int i=0;i<SCREEN_W*SCREEN_H;++i) CHECK((pixels[i]>>24)==255);
 }
 
+static int different_in_region(const uint32_t *a,const uint32_t *b,
+                               int x0,int y0,int x1,int y1) {
+    int changed=0;
+    for (int y=y0;y<y1;++y)
+        for (int x=x0;x<x1;++x)
+            if (a[y*SCREEN_W+x]!=b[y*SCREEN_W+x]) ++changed;
+    return changed;
+}
+
+static void high_score_display_test(void) {
+    Rom rom;char error[256];
+    CHECK(rom_load(&rom,TEST_ROM_PATH,error,sizeof(error)));
+    Game g;game_start(&g);
+    uint32_t *a=malloc(sizeof(uint32_t)*SCREEN_W*SCREEN_H);
+    uint32_t *b=malloc(sizeof(uint32_t)*SCREEN_W*SCREEN_H);
+    CHECK(a && b);
+    static const unsigned pairs[][2]={{123400,23400},{100000,0},{99900,100000}};
+    for (int phase=0;phase<2;++phase) {
+        g.phase=phase==0?TITLE:LOST;
+        g.phase_timer=0;
+        for (unsigned i=0;i<sizeof(pairs)/sizeof(pairs[0]);++i) {
+            g.high_score=(int)pairs[i][0];
+            render_game(a,&g,&rom,0);
+            g.high_score=(int)pairs[i][1];
+            render_game(b,&g,&rom,0);
+            CHECK(memcmp(a,b,sizeof(uint32_t)*SCREEN_W*SCREEN_H)!=0);
+        }
+    }
+    free(a);free(b);
+}
+
+static void overlay_forest_test(void) {
+    Rom rom;char error[256];
+    CHECK(rom_load(&rom,TEST_ROM_PATH,error,sizeof(error)));
+    Game g;game_start(&g);
+    memset(g.tanks,0,sizeof(g.tanks));
+    memset(g.bullets,0,sizeof(g.bullets));
+    memset(g.effects,0,sizeof(g.effects));
+    g.powerup_active=false;
+    for (int y=0;y<MAP_SIZE;++y) for (int x=0;x<MAP_SIZE;++x)
+        g.map[y][x]=(Cell){FOREST,0,0x22};
+    uint32_t *a=malloc(sizeof(uint32_t)*SCREEN_W*SCREEN_H);
+    uint32_t *b=malloc(sizeof(uint32_t)*SCREEN_W*SCREEN_H);
+    CHECK(a && b);
+
+    // PAUSE is five sprites at x=100..139, y=121..136.  Comparing the paused
+    // and playing frame with identical forest leaves exactly the glyph pixels.
+    g.phase=PAUSED;render_game(a,&g,&rom,0);
+    g.phase=PLAYING;render_game(b,&g,&rom,0);
+    CHECK(different_in_region(a,b,100,121,140,137)==138);
+
+    // Battlefield GAME OVER is four sprites at x=104..135, y=106..121.
+    g.phase=LOST_FIELD;g.phase_timer=LOST_FIELD_DELAY;
+    render_game(a,&g,&rom,0);
+    g.phase_timer=0;render_game(b,&g,&rom,0);
+    CHECK(different_in_region(a,b,104,106,136,122)==235);
+
+    free(a);free(b);
+}
+
 static void assets_test(void) {
     Rom rom;char error[256];
     CHECK(rom_load(&rom,TEST_ROM_PATH,error,sizeof(error)));
@@ -720,8 +828,8 @@ static void assets_test(void) {
 int main(void) {
     collision_test();wall_test();combat_test();progression_test();
     stage_test();movement_test();spawn_order_test();powerup_test();
-    two_player_test();bonus_life_test();high_score_after_base_test();tally_animation_test();construction_test();
+    two_player_test();bonus_life_test();high_score_after_base_test();high_score_display_test();overlay_forest_test();tally_animation_test();construction_test();
     lost_field_test();game_over_flow_test();assets_test();
-    puts("PASS: terrain, brick damage, steel, combat, base, shields, respawn, victory, bullet interception, determinism, pause, 35 stages, stage select, construction editor, two-player mode, spawn order, movement timing, powerups, 1P/2P tally animation and ticks, battlefield GAME OVER, game over screen, title scroll, bonus life, high score, double bullets, ROM and rendering");
+    puts("PASS: terrain, brick damage, steel, combat, base, shields, respawn, victory, bullet interception, determinism, pause, 35 stages, stage select, construction editor, two-player mode, spawn order, movement timing, powerups, 1P/2P tally animation and ticks, battlefield GAME OVER, game over screen, title scroll, bonus life, high score, double bullets, six-digit high scores, forest overlays, ROM and rendering");
     return 0;
 }

@@ -209,7 +209,8 @@ static void result_icons(uint32_t *p,const Rom *rom) {
 
 static void render_result(uint32_t *p,const Rom *rom,const Game *g) {
     background(p,rom,result_tiles,result_attributes,result_palettes);
-    result_number(p,rom,(unsigned)g->high_score,23,5,3,5);
+    unsigned high=(unsigned)g->high_score;
+    result_number(p,rom,high,23,6,3,high>=100000?6:5);
     result_number(p,rom,(unsigned)g->stage,19,2,5,1);
     int tally_start=g->players==2?TALLY_START_2P:TALLY_START_1P;
     bool tally_started=g->phase_timer>=tally_start;
@@ -268,14 +269,17 @@ static void render_game_over(uint32_t *p,const Rom *rom) {
 // After GAME OVER the ROM waits briefly, then scrolls the completed title
 // nametable upward at one pixel per frame. title_anim < 0 means static.
 static void title_number(uint32_t *p,const Rom *rom,unsigned value,
-                         int end_col,int width,int row,int offset) {
-    for (int i=0;i<width;++i)
-        tile(p,rom,1,0,(end_col-i)*8,row*8+offset,title_palettes[0],false);
+                         int end_col,int max_width,int row,int offset) {
     unsigned digits=1;
     for (unsigned v=value;v>=10;v/=10) ++digits;
-    if ((int)digits<width) digits=(unsigned)width;
-    for (unsigned i=0;i<digits && (int)i<width;++i) {
-        tile(p,rom,1,0x30+(int)(value%10),(end_col-(int)i)*8,row*8+offset,
+    // Keep the captured five-digit layout for values that fit, and use the
+    // blank column to its left for six-digit scores.
+    int width=(int)digits<5?5:(int)digits;
+    if (width>max_width) width=max_width;
+    for (int i=0;i<width;++i)
+        tile(p,rom,1,0,(end_col-i)*8,row*8+offset,title_palettes[0],false);
+    for (int i=0;i<width;++i) {
+        tile(p,rom,1,0x30+(int)(value%10),(end_col-i)*8,row*8+offset,
              title_palettes[0],false);
         value/=10;
     }
@@ -299,7 +303,7 @@ static void render_title(uint32_t *p,const Rom *rom,const Game *g) {
     }
     // The top line is "I- 00 HI- nnnnn"; keep the captured HI digits in
     // sync with the score earned in this session.
-    title_number(p,rom,(unsigned)g->high_score,19,5,3,offset);
+    title_number(p,rom,(unsigned)g->high_score,19,6,3,offset);
     int row=g->title_cursor;
     if (row<0) row=0;
     if (row>2) row=2;
@@ -394,6 +398,14 @@ void render_game(uint32_t p[SCREEN_W*SCREEN_H],const Game *g,const Rom *rom,unsi
                  16+(int)e->y-size/2+yy*8,explosion_palette,true);
     }
     powerup(p,rom,g);
+    // Trees hide tanks, bullets, explosions and power-ups as in the original
+    // PPU layering, but the PAUSE/GAME OVER sprite overlays are drawn after
+    // them so the message stays readable on custom and forest-heavy maps.
+    for (int y=0;y<MAP_SIZE;++y) for (int x=0;x<MAP_SIZE;++x) {
+        const Cell *c=&g->map[y][x];
+        if (c->type==FOREST)
+            tile(p,rom,1,c->tile?c->tile:0x22,16+x*8,16+y*8,reference_palettes[2],false);
+    }
     // The last-life / base-destroyed message is four 8x16 sprites spelling
     // GAME OVER over the frozen field; it appears 127 frames after the loss.
     if (g->phase==LOST_FIELD && g->phase_timer>=LOST_FIELD_DELAY) {
@@ -409,13 +421,6 @@ void render_game(uint32_t p[SCREEN_W*SCREEN_H],const Game *g,const Rom *rom,unsi
         sprite(p,rom,0x1b,116,121,3,reference_palettes);
         sprite(p,rom,0x1d,124,121,3,reference_palettes);
         sprite(p,rom,0x1f,132,121,3,reference_palettes);
-    }
-    // Trees are background tiles drawn after the sprites, exactly like the
-    // original PPU layering, so tanks disappear underneath them.
-    for (int y=0;y<MAP_SIZE;++y) for (int x=0;x<MAP_SIZE;++x) {
-        const Cell *c=&g->map[y][x];
-        if (c->type==FOREST)
-            tile(p,rom,1,c->tile?c->tile:0x22,16+x*8,16+y*8,reference_palettes[2],false);
     }
     hud(p,rom,g);
 }

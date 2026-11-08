@@ -34,21 +34,31 @@ static void update_high_score(Game *g) {
 
 // $D13A: while the eagle is alive, award one extra life per player when the
 // ten-thousands score digit reaches 2 (20,000 points). The ROM sets sound
-// request slots 4 and 5 for the 1UP.
-static void check_bonus_life(Game *g) {
-    if (!g->base_alive) return;
+// request slots 4 and 5 for the 1UP.  Returns true when a life awarded during
+// LOST_FIELD revives a player and cancels that failure.
+static bool check_bonus_life(Game *g) {
+    if (!g->base_alive) return false;
+    bool revived=false;
     for (int p=0; p<g->players; ++p) {
         if (g->bonus_awarded[p] || g->score[p] < 20000) continue;
         g->bonus_awarded[p]=true;
         ++g->lives[p];
-        // A lingering bullet can cross 20,000 in the same frame that the
-        // player's last life is lost.  The life is still awarded, so bring
-        // the eliminated player back instead of leaving the game stuck with
-        // a life but no tank.
-        if (g->phase==PLAYING && !g->tanks[p].alive && g->respawn_timer[p]==0)
+        // A lingering bullet can cross 20,000 in the same frame as the last
+        // death, or one frame later after LOST_FIELD has already begun.  The
+        // life is still awarded, so bring the player back and cancel a
+        // failure caused only by exhausted lives.  A destroyed eagle cannot
+        // be undone and is excluded by base_alive above.
+        if (!g->tanks[p].alive && g->respawn_timer[p]==0) {
             g->respawn_timer[p]=90;
+            if (g->phase==LOST_FIELD) {
+                g->phase=PLAYING;
+                g->phase_timer=0;
+                revived=true;
+            }
+        }
         g->sound_events |= (1u<<SOUND_ENEMY)|(1u<<SOUND_PLAYER);
     }
+    return revived;
 }
 
 static bool overlaps(float ax, float ay, float aw, float ah,
@@ -575,34 +585,43 @@ static bool bullet_wall(Game *g, Bullet *b) {
 }
 
 static void bullets_step(Game *g) {
-    for (int i=0; i<MAX_BULLETS; ++i) {
-        Bullet *b=&g->bullets[i];
-        if (!b->alive) continue;
-        // The ROM moves ordinary bullets two pixels per 60 Hz tick and
-        // power-tank bullets four.
-        int speed=b->speed?b->speed:2;
-        for (int step=0; step<speed && b->alive; ++step) {
+    // Advance every bullet one pixel at a time so bullet-versus-bullet tests
+    // always compare positions from the same instant.  The old per-bullet
+    // full move mixed this frame's position with another bullet's previous
+    // position, making identical trajectories depend on slot order.
+    for (int step=0; step<4; ++step) {
+        for (int i=0; i<MAX_BULLETS; ++i) {
+            Bullet *b=&g->bullets[i];
+            if (!b->alive) continue;
+            // The ROM moves ordinary bullets two pixels per 60 Hz tick and
+            // power-tank bullets four.
+            int speed=b->speed?b->speed:2;
+            if (step>=speed) continue;
             b->x+=dx[b->dir]; b->y+=dy[b->dir];
             if (b->x<0 || b->y<0 || b->x>=FIELD_SIZE || b->y>=FIELD_SIZE || bullet_wall(g,b)) {
                 if (b->owner<g->players && (b->x<0 || b->y<0 || b->x>=FIELD_SIZE || b->y>=FIELD_SIZE))
                     g->sound_events |= 1u << SOUND_STEEL;
-                destroy_bullet(g,b); game_explode(g,b->x,b->y,false); break;
+                destroy_bullet(g,b); game_explode(g,b->x,b->y,false); continue;
             }
-            for (int j=0; j<MAX_BULLETS; ++j) {
-                Bullet *other=&g->bullets[j];
-                bool this_player=b->owner<g->players;
-                bool other_player=other->owner<g->players;
-                if (i!=j && other->alive && this_player!=other_player &&
-                    fabsf(b->x-other->x)<4 && fabsf(b->y-other->y)<4) {
-                    // Bullet-versus-bullet interception uses the same
-                    // destruction path as walls, so both shooters receive the
-                    // normal 9-frame cooldown.
-                    destroy_bullet(g,b);
-                    destroy_bullet(g,other);
-                    break;
-                }
+        }
+        for (int i=0; i<MAX_BULLETS; ++i) for (int j=i+1; j<MAX_BULLETS; ++j) {
+            Bullet *a=&g->bullets[i], *b=&g->bullets[j];
+            if (!a->alive || !b->alive) continue;
+            bool a_player=a->owner<g->players;
+            bool b_player=b->owner<g->players;
+            if (a_player==b_player) continue;
+            if (fabsf(a->x-b->x)<4 && fabsf(a->y-b->y)<4) {
+                // Interception uses the normal destruction path, so both
+                // shooters receive the 9-frame cooldown.
+                destroy_bullet(g,a);
+                destroy_bullet(g,b);
             }
-            if (!b->alive) break;
+        }
+        // Tank hits are resolved after interception, matching the original
+        // bullet-vs-bullet-before-bullet-vs-tank order.
+        for (int i=0; i<MAX_BULLETS; ++i) {
+            Bullet *b=&g->bullets[i];
+            if (!b->alive) continue;
             for (int j=0; j<MAX_TANKS; ++j) {
                 Tank *t=&g->tanks[j];
                 bool bullet_player=b->owner<g->players;
@@ -753,7 +772,7 @@ void game_step_inputs(Game *g, const Input inputs[2]) {
     }
     if (g->phase!=PLAYING && !lost_field) return;
     ++g->tick;
-    check_bonus_life(g);
+    if (check_bonus_life(g)) lost_field=false;
     for (int i=0; i<MAX_EFFECTS; ++i) if (g->effects[i].life>0) --g->effects[i].life;
     if (g->powerup_flash>0) --g->powerup_flash;
     if (g->freeze_timer>0) --g->freeze_timer;
@@ -810,7 +829,7 @@ void game_step_inputs(Game *g, const Input inputs[2]) {
     // A kill made by a dead player's last bullet is scored after the tank
     // death, so evaluate the bonus life and the final failure only once all
     // bullets for this frame have been resolved.
-    check_bonus_life(g);
+    if (check_bonus_life(g)) lost_field=false;
     if (g->phase==PLAYING && g->lives[0]+g->lives[1]==0) {
         g->phase=LOST_FIELD;
         g->phase_timer=0;
