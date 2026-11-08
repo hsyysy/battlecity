@@ -82,7 +82,7 @@ endif()
 if(UNIX)
     target_link_libraries(battlecity_core PUBLIC m)
 endif()
-add_executable(battlecity src/main.c src/menu.c)
+add_executable(battlecity src/main.c src/menu.c src/gamepad.c)
 target_link_libraries(battlecity PRIVATE battlecity_core battlecity_sound PkgConfig::SDL3)
 if(BATTLECITY_ROM)
     set(DEFAULT_ROM_PATH "${BATTLECITY_ROM}")
@@ -94,12 +94,40 @@ target_compile_definitions(battlecity PRIVATE DEFAULT_ROM_PATH="${DEFAULT_ROM_PA
 include(CTest)
 if(BUILD_TESTING)
     find_package(Python3 COMPONENTS Interpreter)
+    set(BATTLECITY_REFERENCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets/reference" CACHE PATH
+        "Directory containing regenerated FCEUX reference PNGs")
+    option(BATTLECITY_REFERENCE_TESTS "Enable pixel comparisons against regenerated references" OFF)
+    # Explicitly requesting the pixel test must never depend on the ROM or the
+    # reference directory happening to exist: validate every dependency here,
+    # outside the ROM/test-registration condition below.
+    if(BATTLECITY_REFERENCE_TESTS)
+        if(NOT EXISTS "${DEFAULT_ROM_PATH}")
+            message(FATAL_ERROR
+                "BATTLECITY_REFERENCE_TESTS=ON requires a readable ROM.\n"
+                "Pass -DBATTLECITY_ROM=/path/to/BattleCity.nes (current: ${DEFAULT_ROM_PATH})")
+        endif()
+        if(NOT Python3_Interpreter_FOUND)
+            message(FATAL_ERROR
+                "BATTLECITY_REFERENCE_TESTS=ON requires a Python 3 interpreter")
+        endif()
+        if(NOT EXISTS "${BATTLECITY_REFERENCE_DIR}/title.png")
+            message(FATAL_ERROR
+                "BATTLECITY_REFERENCE_TESTS=ON but no reference pixels were "
+                "found in ${BATTLECITY_REFERENCE_DIR}.\n"
+                "Generate them from your own ROM first:\n"
+                "  python3 tools/capture_all_references.py --rom /path/to/BattleCity.nes --out build/reference\n"
+                "then configure with -DBATTLECITY_REFERENCE_DIR=build/reference")
+        endif()
+    endif()
+
     add_executable(test_core tests/test_core.c)
     target_link_libraries(test_core PRIVATE battlecity_core)
     target_compile_definitions(test_core PRIVATE TEST_ROM_PATH="${DEFAULT_ROM_PATH}")
     add_executable(test_menu tests/test_menu.c src/menu.c)
     target_link_libraries(test_menu PRIVATE battlecity_core battlecity_sound PkgConfig::SDL3)
     target_compile_definitions(test_menu PRIVATE TEST_ROM_PATH="${DEFAULT_ROM_PATH}")
+    add_executable(test_gamepad tests/test_gamepad.c src/gamepad.c)
+    target_link_libraries(test_gamepad PRIVATE battlecity_core PkgConfig::SDL3)
     add_executable(test_sound tests/test_sound.c)
     target_link_libraries(test_sound PRIVATE battlecity_core battlecity_sound PkgConfig::SDL3)
     target_compile_definitions(test_sound PRIVATE TEST_ROM_PATH="${DEFAULT_ROM_PATH}")
@@ -111,32 +139,17 @@ if(BUILD_TESTING)
     if(EXISTS "${DEFAULT_ROM_PATH}")
         add_test(NAME core COMMAND test_core)
         add_test(NAME menu COMMAND test_menu)
+        add_test(NAME gamepad COMMAND test_gamepad)
         add_test(NAME sound COMMAND test_sound "${CMAKE_CURRENT_BINARY_DIR}/sound-preview.wav")
         add_test(NAME sdl3_smoke COMMAND battlecity --rom "${DEFAULT_ROM_PATH}" --headless --demo --frames 1200
                  --screenshot "${CMAKE_CURRENT_BINARY_DIR}/smoke.bmp"
                  --audio-out "${CMAKE_CURRENT_BINARY_DIR}/smoke.wav")
-        if(Python3_Interpreter_FOUND)
-            set(BATTLECITY_REFERENCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets/reference" CACHE PATH
-                "Directory containing regenerated FCEUX reference PNGs")
-            option(BATTLECITY_REFERENCE_TESTS "Enable pixel comparisons against regenerated references" OFF)
-            if(BATTLECITY_REFERENCE_TESTS)
-                if(NOT EXISTS "${BATTLECITY_REFERENCE_DIR}/title.png")
-                    message(FATAL_ERROR
-                        "BATTLECITY_REFERENCE_TESTS=ON but no reference pixels were "
-                        "found in ${BATTLECITY_REFERENCE_DIR}.\n"
-                        "Generate them from your own ROM first:\n"
-                        "  python3 tools/capture_all_references.py --rom /path/to/BattleCity.nes --out build/reference\n"
-                        "then configure with -DBATTLECITY_REFERENCE_DIR=build/reference")
-                endif()
-                add_test(NAME reference_pixels COMMAND ${Python3_EXECUTABLE}
-                         "${CMAKE_CURRENT_SOURCE_DIR}/tools/compare_reference.py"
-                         --renderer $<TARGET_FILE:render_reference>
-                         --reference "${BATTLECITY_REFERENCE_DIR}"
-                         --output "${CMAKE_CURRENT_BINARY_DIR}/reference-validation")
-            endif()
-        elseif(BATTLECITY_REFERENCE_TESTS)
-            message(FATAL_ERROR
-                "BATTLECITY_REFERENCE_TESTS=ON requires a Python 3 interpreter")
+        if(BATTLECITY_REFERENCE_TESTS)
+            add_test(NAME reference_pixels COMMAND ${Python3_EXECUTABLE}
+                     "${CMAKE_CURRENT_SOURCE_DIR}/tools/compare_reference.py"
+                     --renderer $<TARGET_FILE:render_reference>
+                     --reference "${BATTLECITY_REFERENCE_DIR}"
+                     --output "${CMAKE_CURRENT_BINARY_DIR}/reference-validation")
         endif()
     endif()
 endif()

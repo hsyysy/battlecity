@@ -64,10 +64,13 @@ void menu_handle_key(SDL_Keycode key,Game *game,int *players,int stage,
     }
     else if (key==SDLK_RETURN && game->phase==TITLE) {
         sound_stop(sound);if (audio) SDL_ClearAudioStream(audio);
-        if (game->title_cursor==2)
+        if (game->title_cursor==2) {
             game_enter_construction(game);
-        else
-            begin_stage_select(game,game->title_cursor+1,stage,true);
+        } else {
+            *players=game->title_cursor+1;
+            game->players=*players;
+            begin_stage_select(game,*players,stage,true);
+        }
     }
     else if (key==SDLK_RETURN && game->phase==WON) {
         sound_stop(sound);if (audio) SDL_ClearAudioStream(audio);

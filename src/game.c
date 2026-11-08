@@ -357,8 +357,14 @@ static bool move_tank(Game *g, int i, Direction dir, float speed) {
 bool game_fire(Game *g, int i) {
     Tank *t=&g->tanks[i];
     if (!t->alive || t->spawn>0 || t->cooldown>0) return false;
+    // Star upgrades raise the number of simultaneous player bullets: the
+    // second star allows two, while the base tank and every enemy keep one.
+    int limit=1;
+    if (i<2 && i<g->players && g->player_rank[i]>=2) limit=2;
+    int owner_bullets=0;
     for (int b=0; b<MAX_BULLETS; ++b)
-        if (g->bullets[b].alive && g->bullets[b].owner==i) return false;
+        if (g->bullets[b].alive && g->bullets[b].owner==i) ++owner_bullets;
+    if (owner_bullets>=limit) return false;
     for (int b=0; b<MAX_BULLETS; ++b) if (!g->bullets[b].alive) {
         // Begin at the muzzle; bullets advance in one pixel substeps.
         // Star upgrades and power tanks use the ROM's 4px/frame bullet;
@@ -797,6 +803,10 @@ void game_step_inputs(Game *g, const Input inputs[2]) {
     }
     bullets_step(g);
     powerup_collect(g);
+    // Scores can still change after the eagle is hit (same-frame shots and
+    // bullets left in flight during LOST_FIELD).  Keep HI-SCORE in step with
+    // the final score before the tally and title screens read it.
+    update_high_score(g);
     // A kill made by a dead player's last bullet is scored after the tank
     // death, so evaluate the bonus life and the final failure only once all
     // bullets for this frame have been resolved.

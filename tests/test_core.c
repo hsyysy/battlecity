@@ -281,6 +281,29 @@ static void powerup_test(void) {
     for(int i=0;i<MAX_BULLETS;++i) if(g.bullets[i].alive)
         CHECK(g.bullets[i].power==3 && g.bullets[i].speed==4);
 
+    // One star keeps one bullet; two and three stars allow two at a time.
+    arena(&g);g.player_rank[0]=1;g.tanks[0].rank=1;
+    CHECK(game_fire(&g,0));
+    CHECK(!game_fire(&g,0));
+    arena(&g);g.player_rank[0]=2;g.tanks[0].rank=2;
+    CHECK(game_fire(&g,0));
+    CHECK(game_fire(&g,0));
+    CHECK(!game_fire(&g,0));
+    // Destroying one bullet starts the normal 9-frame cooldown and then the
+    // free capacity is usable again.
+    g.bullets[0]=(Bullet){true,20,20,RIGHT,0,2,0};
+    g.map[2][2]=(Cell){BRICK,15,0};
+    step(&g,1);
+    CHECK(!g.bullets[0].alive && g.tanks[0].cooldown==9);
+    CHECK(!game_fire(&g,0));
+    step(&g,9);
+    CHECK(g.tanks[0].cooldown==0);
+    CHECK(game_fire(&g,0));
+    arena(&g);g.player_rank[0]=3;g.tanks[0].rank=3;
+    CHECK(game_fire(&g,0));
+    CHECK(game_fire(&g,0));
+    CHECK(!game_fire(&g,0));
+
     arena(&g);
     g.tanks[1]=(Tank){.alive=true,.x=32,.y=64,.dir=DOWN,.hp=1};
     g.tanks[2]=(Tank){.alive=true,.x=96,.y=64,.dir=DOWN,.hp=1};
@@ -346,6 +369,37 @@ static void two_player_test(void) {
     p.bullets[0]=(Bullet){true,136,p.tanks[1].y+7,DOWN,2,2,0};
     step(&p,1);
     CHECK(p.lives[1]==0 && p.phase==LOST_FIELD);
+}
+
+static void high_score_after_base_test(void) {
+    Game g;arena(&g);
+    g.high_score=20000;g.score[0]=19900;
+    g.map[10][10]=(Cell){BASE,0,0};
+    g.tanks[1]=(Tank){.alive=true,.x=64,.y=0,.dir=DOWN,.hp=1,.kind=3,
+                      .cooldown=999,.think=999,.spawn=0};
+    // The first bullet destroys the eagle; the second kills an armored tank
+    // for 400 points in the same frame.
+    g.bullets[0]=(Bullet){true,78,84,RIGHT,1,2,0};
+    g.bullets[1]=(Bullet){true,72,16,UP,0,2,0};
+    step(&g,1);
+    CHECK(!g.base_alive && g.phase==LOST_FIELD);
+    CHECK(g.score[0]==20300 && g.high_score==20300);
+    // The high score survives the complete failure/tally/title chain.
+    step(&g,700);
+    CHECK(g.phase==TITLE && g.high_score==20300);
+
+    // A kill made by a bullet already in flight during LOST_FIELD also counts.
+    Game h;arena(&h);
+    h.high_score=20000;h.score[0]=19900;
+    h.map[10][10]=(Cell){BASE,0,0};
+    h.tanks[1]=(Tank){.alive=true,.x=64,.y=4,.dir=DOWN,.hp=1,.kind=3,
+                      .cooldown=999,.think=999,.spawn=0};
+    h.bullets[0]=(Bullet){true,78,84,RIGHT,1,2,0};
+    step(&h,1);
+    CHECK(h.phase==LOST_FIELD && h.score[0]==19900);
+    h.bullets[1]=(Bullet){true,72,16,UP,0,2,0};
+    step(&h,1);
+    CHECK(h.score[0]==20300 && h.high_score==20300);
 }
 
 static void bonus_life_test(void) {
@@ -666,8 +720,8 @@ static void assets_test(void) {
 int main(void) {
     collision_test();wall_test();combat_test();progression_test();
     stage_test();movement_test();spawn_order_test();powerup_test();
-    two_player_test();bonus_life_test();tally_animation_test();construction_test();
+    two_player_test();bonus_life_test();high_score_after_base_test();tally_animation_test();construction_test();
     lost_field_test();game_over_flow_test();assets_test();
-    puts("PASS: terrain, brick damage, steel, combat, base, shields, respawn, victory, bullet interception, determinism, pause, 35 stages, stage select, construction editor, two-player mode, spawn order, movement timing, powerups, 1P/2P tally animation and ticks, battlefield GAME OVER, game over screen, title scroll, bonus life, high score, ROM and rendering");
+    puts("PASS: terrain, brick damage, steel, combat, base, shields, respawn, victory, bullet interception, determinism, pause, 35 stages, stage select, construction editor, two-player mode, spawn order, movement timing, powerups, 1P/2P tally animation and ticks, battlefield GAME OVER, game over screen, title scroll, bonus life, high score, double bullets, ROM and rendering");
     return 0;
 }

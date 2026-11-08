@@ -60,9 +60,9 @@ cmake -S . -B build -DBATTLECITY_ROM=/path/to/BattleCity.nes \
   -DBATTLECITY_REFERENCE_DIR=build/reference
 ```
 
-Explicitly enabling the test fails at configure time when `title.png` is
-missing. The comparison also checks every required PNG, RAM snapshot and sprite
-crop before rendering and reports the full missing list.
+Explicitly enabling the test fails at configure time when the ROM, Python 3 or
+`title.png` is missing. The comparison also checks every required PNG, RAM
+snapshot and sprite crop before rendering and reports the full missing list.
 
 ## ROM identification
 

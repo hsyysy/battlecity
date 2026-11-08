@@ -29,6 +29,22 @@ int main(void) {
     CHECK(g.phase == TITLE && !quit && g.custom_map_ready);
     CHECK(g.custom_map[0][1].type == BRICK && g.custom_map[1][1].type == BRICK);
 
-    puts("PASS: Construction Space paints without exiting; Enter stores and exits");
+    // Starting 1P from the title must also update the menu's player count.
+    // Otherwise a 2P game that returns to the title and starts 1P would turn
+    // back into 2P after clearing stage 35.
+    Game modes;
+    game_start_mode(&modes,2,35);
+    modes.phase=TITLE;
+    modes.title_cursor=0;
+    players=2;
+    stage=1;
+    menu_handle_key(SDLK_RETURN,&modes,&players,stage,&quit,NULL,NULL);
+    CHECK(modes.phase==STAGE_SELECT && modes.players==1 && players==1);
+    modes.stage=35;
+    modes.phase=WON;
+    menu_handle_key(SDLK_RETURN,&modes,&players,stage,&quit,NULL,NULL);
+    CHECK(modes.phase==STAGE_SELECT && modes.players==1 && modes.stage==1);
+
+    puts("PASS: Construction Space/Enter and title player-count sync");
     return 0;
 }
