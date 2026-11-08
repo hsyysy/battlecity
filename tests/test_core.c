@@ -802,6 +802,42 @@ static void overlay_forest_test(void) {
     free(a);free(b);
 }
 
+static void forest_holes_test(void) {
+    Rom rom;char error[256];
+    CHECK(rom_load(&rom,TEST_ROM_PATH,error,sizeof(error)));
+    Game g;game_start(&g);
+    memset(g.map,0,sizeof(g.map));
+    memset(g.bullets,0,sizeof(g.bullets));
+    memset(g.effects,0,sizeof(g.effects));
+    g.powerup_active=false;
+    g.tanks[0]=(Tank){.alive=true,.x=64,.y=160,.dir=UP,.hp=1};
+    g.phase=PLAYING;
+    uint32_t *clear=malloc(sizeof(uint32_t)*SCREEN_W*SCREEN_H);
+    uint32_t *trees=malloc(sizeof(uint32_t)*SCREEN_W*SCREEN_H);
+    CHECK(clear && trees);
+    render_game(clear,&g,&rom,0);
+    for (int y=20;y<=21;++y) for (int x=8;x<=9;++x)
+        g.map[y][x]=(Cell){FOREST,0,0x22};
+    render_game(trees,&g,&rom,0);
+
+    int holes=0,colored=0,covered=0;
+    for (int fy=160;fy<176;++fy) for (int fx=64;fx<80;++fx) {
+        unsigned pattern=rom_pixel(&rom,1,0x22,fx%8,fy%8);
+        int sx=16+fx,sy=16+fy;
+        if (pattern==0) {
+            ++holes;
+            // Forest index 0 must leave the tank pixel underneath intact.
+            CHECK(trees[sy*SCREEN_W+sx]==clear[sy*SCREEN_W+sx]);
+            if (clear[sy*SCREEN_W+sx]!=0xff000000u) ++colored;
+        } else if (clear[sy*SCREEN_W+sx]!=0xff000000u) {
+            ++covered;
+            CHECK(trees[sy*SCREEN_W+sx]!=clear[sy*SCREEN_W+sx]);
+        }
+    }
+    CHECK(holes==16 && colored==4 && covered>0);
+    free(clear);free(trees);
+}
+
 static void assets_test(void) {
     Rom rom;char error[256];
     CHECK(rom_load(&rom,TEST_ROM_PATH,error,sizeof(error)));
@@ -828,8 +864,8 @@ static void assets_test(void) {
 int main(void) {
     collision_test();wall_test();combat_test();progression_test();
     stage_test();movement_test();spawn_order_test();powerup_test();
-    two_player_test();bonus_life_test();high_score_after_base_test();high_score_display_test();overlay_forest_test();tally_animation_test();construction_test();
+    two_player_test();bonus_life_test();high_score_after_base_test();high_score_display_test();overlay_forest_test();forest_holes_test();tally_animation_test();construction_test();
     lost_field_test();game_over_flow_test();assets_test();
-    puts("PASS: terrain, brick damage, steel, combat, base, shields, respawn, victory, bullet interception, determinism, pause, 35 stages, stage select, construction editor, two-player mode, spawn order, movement timing, powerups, 1P/2P tally animation and ticks, battlefield GAME OVER, game over screen, title scroll, bonus life, high score, double bullets, six-digit high scores, forest overlays, ROM and rendering");
+    puts("PASS: terrain, brick damage, steel, combat, base, shields, respawn, victory, bullet interception, determinism, pause, 35 stages, stage select, construction editor, two-player mode, spawn order, movement timing, powerups, 1P/2P tally animation and ticks, battlefield GAME OVER, game over screen, title scroll, bonus life, high score, double bullets, six-digit high scores, forest overlays/holes, ROM and rendering");
     return 0;
 }

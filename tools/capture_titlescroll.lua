@@ -18,6 +18,7 @@ local function gameover_visible()
     return true
 end
 local over = nil
+local saved = {}
 for frame = 1, 2400 do
     local keys = {}
     if (frame >= 500 and frame < 505) or (frame >= 1000 and frame < 1005) then keys.start = true end
@@ -30,7 +31,17 @@ for frame = 1, 2400 do
         local f = assert(io.open(output .. '/' .. name .. '.gd', 'wb'))
         f:write(gui.gdscreenshot())
         f:close()
+        saved[name] = true
     end
     if over and frame == over + 283 then break end
+end
+local missing = {}
+for _, name in ipairs({'titlescroll51', 'titlescroll171'}) do
+    if not saved[name] then missing[#missing + 1] = name end
+end
+if #missing > 0 then
+    io.stderr:write('capture_titlescroll: missing frames: ' ..
+        table.concat(missing, ',') .. '\n')
+    os.exit(1)
 end
 os.exit(0)

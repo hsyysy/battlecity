@@ -6,6 +6,13 @@
 static SDL_Gamepad *gamepads[2];
 static SDL_JoystickID gamepad_ids[2];
 
+static int enumerate_sdl(SDL_JoystickID **ids) {
+    int count=0;
+    *ids=SDL_GetGamepads(&count);
+    return count;
+}
+static GamepadEnumerator enumerator=enumerate_sdl;
+
 static void open_gamepad(SDL_JoystickID id) {
     for (int i=0;i<2;++i) if (gamepads[i] && gamepad_ids[i]==id) return;
     for (int i=0;i<2;++i) if (!gamepads[i]) {
@@ -15,9 +22,13 @@ static void open_gamepad(SDL_JoystickID id) {
     }
 }
 
+void gamepads_set_enumerator(GamepadEnumerator next) {
+    enumerator=next?next:enumerate_sdl;
+}
+
 void gamepads_open_existing(void) {
-    int count=0;
-    SDL_JoystickID *ids=SDL_GetGamepads(&count);
+    SDL_JoystickID *ids=NULL;
+    int count=enumerator(&ids);
     if (!ids) return;
     for (int i=0;i<count;++i) open_gamepad(ids[i]);
     SDL_free(ids);

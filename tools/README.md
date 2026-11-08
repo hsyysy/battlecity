@@ -33,11 +33,14 @@ python3 tools/capture_all_references.py \
   --rom /path/to/BattleCity.nes --out build/reference
 ```
 
-The script runs every capture below, converts the `.gd` screenshots with
-`gd_to_png.py`, and creates `sprites/*.png` plus the CSV evidence with
-`export_trace.py`. It writes the exact scene names used by
-`compare_reference.py` (`title`, `construction_blink`, `stage_select`,
-`tally117`, `tally2p34`, and so on):
+The script captures into a fresh temporary directory, runs every capture
+below, converts the `.gd` screenshots with `gd_to_png.py`, and creates
+`sprites/*.png` plus the CSV evidence with `export_trace.py`. It writes the
+exact scene names used by `compare_reference.py` (`title`,
+`construction_blink`, `stage_select`, `tally117`, `tally2p34`, and so on).
+Every expected scene and sprite crop is verified before the target directory
+is updated, so a partial or failed capture returns non-zero and never reuses
+old screenshots. The partial output directory is printed for inspection.
 
 - `capture_reference.lua` (title/stage1)
 - `capture_interstage.lua` (stage select)

@@ -121,7 +121,7 @@ ctest --test-dir build --output-on-failure
 python3 tools/capture_all_references.py --rom /path/to/BattleCity.nes --out build/reference
 ```
 
-再配置 `-DBATTLECITY_REFERENCE_TESTS=ON -DBATTLECITY_REFERENCE_DIR=build/reference`。显式启用时，ROM、Python 3 或参照目录任一缺失都会让 CMake 配置失败；比较脚本开始前也会列出所有缺失的 PNG、RAM 和精灵裁剪。`menu` 通过实际的菜单按键处理验证 Construction 中 Space 绘制而不退出、Enter 保存退出，以及标题开始 1P/2P 时菜单人数同步；`gamepad` 用 SDL 虚拟手柄验证第三只手柄在拔掉已分配手柄后补位并控制 P2；`sound` 检查原版声音请求（含结算逐辆计分音）、音乐与短音效的混音、确定性、停止和静音；`sdl3_smoke` 同时生成 `smoke.bmp` 和 `smoke.wav`。
+捕获先写入临时目录，验证全部场景和精灵裁剪后才会更新目标目录；缺帧或失败时返回非零并保留部分输出，不会把旧截图当作新结果。再配置 `-DBATTLECITY_REFERENCE_TESTS=ON -DBATTLECITY_REFERENCE_DIR=build/reference`。显式启用时，ROM、Python 3 或参照目录任一缺失都会让 CMake 配置失败；比较脚本开始前也会列出所有缺失的 PNG、RAM 和精灵裁剪。`menu` 通过实际的菜单按键处理验证 Construction 中 Space 绘制而不退出、Enter 保存退出，以及标题开始 1P/2P 时菜单人数同步；`gamepad` 通过注入设备枚举隔离物理手柄，验证第三只手柄在拔掉已分配手柄后补位并控制 P2；`sound` 检查原版声音请求（含结算逐辆计分音）、音乐与短音效的混音、确定性、停止和静音；`sdl3_smoke` 同时生成 `smoke.bmp` 和 `smoke.wav`。
 
 ```sh
 cmake -S . -B build-asan -DCMAKE_BUILD_TYPE=Debug -DENABLE_SANITIZERS=ON
@@ -129,7 +129,7 @@ cmake --build build-asan -j
 ASAN_OPTIONS=detect_leaks=0 ctest --test-dir build-asan --output-on-failure
 ```
 
-`menu` 通过实际按键处理覆盖 Construction 的 Space/Enter 行为、地图保存和标题人数同步；`gamepad` 覆盖三只手柄的连接、移除和补位；核心测试覆盖边界与地形碰撞、砖墙分层破坏、钢墙阻挡、击杀计分、基地受击、出生保护、复活、通关、子弹抵消、暂停冻结与 PAUSE 精灵、35 关地形与敌人编成、出生顺序、玩家与子弹速度、双人独立移动/计分/生命、六种道具效果、分类击杀统计、1P/2P 结算累加时序与逐辆计分音、Construction 光标移动/自动重复/方块循环/绘制与自制地图进入关卡、战场 GAME OVER 文字阶段、GAME OVER／标题卷入流程、20000 分奖命（含死亡后下一帧奖命取消失败）、基地击毁后同帧击杀的高分更新、与槽位无关的子弹抵消、一星单弹与二星/三星双弹、六位高分显示、树林下的 PAUSE/战场 GAME OVER 提示、结算高分更新、声音事件及 5000 次更新的确定性检查。SDL3 集成测试实际渲染 1200 帧并保存 BMP 和 WAV。Sanitizer 命令关闭 SDL/系统库的泄漏检查，地址检查和未定义行为检查保持启用。
+`menu` 通过实际按键处理覆盖 Construction 的 Space/Enter 行为、地图保存和标题人数同步；`gamepad` 覆盖三只手柄的连接、移除和补位；`capture_pipeline` 用故障注入验证缺帧捕获失败且不更新旧参照；核心测试覆盖边界与地形碰撞、砖墙分层破坏、钢墙阻挡、击杀计分、基地受击、出生保护、复活、通关、子弹抵消、暂停冻结与 PAUSE 精灵、35 关地形与敌人编成、出生顺序、玩家与子弹速度、双人独立移动/计分/生命、六种道具效果、分类击杀统计、1P/2P 结算累加时序与逐辆计分音、Construction 光标移动/自动重复/方块循环/绘制与自制地图进入关卡、战场 GAME OVER 文字阶段、GAME OVER／标题卷入流程、20000 分奖命（含死亡后下一帧奖命取消失败）、基地击毁后同帧击杀的高分更新、与槽位无关的子弹抵消、一星单弹与二星/三星双弹、六位高分显示、树林透明孔洞和非零像素遮挡、树林下的 PAUSE/战场 GAME OVER 提示、结算高分更新、声音事件及 5000 次更新的确定性检查。SDL3 集成测试实际渲染 1200 帧并保存 BMP 和 WAV。Sanitizer 命令关闭 SDL/系统库的泄漏检查，地址检查和未定义行为检查保持启用。
 
 ## ROM 分析与参照数据
 

@@ -404,7 +404,9 @@ void render_game(uint32_t p[SCREEN_W*SCREEN_H],const Game *g,const Rom *rom,unsi
     for (int y=0;y<MAP_SIZE;++y) for (int x=0;x<MAP_SIZE;++x) {
         const Cell *c=&g->map[y][x];
         if (c->type==FOREST)
-            tile(p,rom,1,c->tile?c->tile:0x22,16+x*8,16+y*8,reference_palettes[2],false);
+            // Index 0 is transparent: these holes must reveal a sprite drawn
+            // underneath the forest instead of painting it black.
+            tile(p,rom,1,c->tile?c->tile:0x22,16+x*8,16+y*8,reference_palettes[2],true);
     }
     // The last-life / base-destroyed message is four 8x16 sprites spelling
     // GAME OVER over the frozen field; it appears 127 frames after the loss.

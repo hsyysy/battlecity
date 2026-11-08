@@ -11,6 +11,7 @@ local targets = players == 2 and {[0]=true,[34]=true,[43]=true,[70]=true,
     or {[0]=true,[33]=true,[72]=true,[81]=true,[117]=true,[120]=true,
         [177]=true,[204]=true,[251]=true}
 local started, startframe = false, 0
+local written = {}
 for frame = 1, 2200 do
     local keys = {}
     if players == 2 and frame >= 400 and frame < 405 then keys.select = true end
@@ -46,7 +47,18 @@ for frame = 1, 2200 do
             local r = assert(io.open(prefix .. '-ram.bin', 'wb'))
             for i = 0, 0x7ff do r:write(string.char(memory.readbyte(i))) end
             r:close()
+            written[rel] = true
         end
     end
+end
+local missing = {}
+for rel in pairs(targets) do
+    if not written[rel] then missing[#missing + 1] = rel end
+end
+table.sort(missing)
+if #missing > 0 then
+    io.stderr:write('capture_tally: missing frames: ' ..
+        table.concat(missing, ',') .. '\n')
+    os.exit(1)
 end
 os.exit(0)

@@ -135,6 +135,8 @@ if(BUILD_TESTING)
         add_executable(render_reference tests/render_reference.c)
         target_link_libraries(render_reference PRIVATE battlecity_core)
         target_compile_definitions(render_reference PRIVATE TEST_ROM_PATH="${DEFAULT_ROM_PATH}")
+        add_test(NAME capture_pipeline COMMAND ${Python3_EXECUTABLE}
+                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_capture_pipeline.py")
     endif()
     if(EXISTS "${DEFAULT_ROM_PATH}")
         add_test(NAME core COMMAND test_core)
